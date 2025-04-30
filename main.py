@@ -38,7 +38,7 @@ ADMIN_ID = 123456789  # Замените на свой Telegram ID
 def main_menu_buttons():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     markup.add(types.KeyboardButton("🚗 Купить авто"), types.KeyboardButton("🛒 Продать авто"))
-    markup.add(types.KeyboardButton("💎 Премиум доступ"), types.KeyboardButton("📢 Реклама партнёров"))
+    markup.add(types.KeyboardButton("💎 Премиум доступ"), types.KeyboardButton("📢 Наши партнёры"))
     markup.add(types.KeyboardButton("👨‍💻 Админ-панель"), types.KeyboardButton("🔙 В меню"))
     return markup
 
