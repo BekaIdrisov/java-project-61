@@ -65,6 +65,11 @@ def get_make(message):
 
 def get_model(message, user_data):
     user_data['model'] = message.text
+    bot.send_message(message.chat.id, "Введите город (например, Бишкек):")
+    bot.register_next_step_handler(message, get_city, user_data)
+
+def get_city(message, user_data):
+    user_data['city'] = message.text
     bot.send_message(message.chat.id, "Введите год выпуска:")
     bot.register_next_step_handler(message, get_year, user_data)
 
@@ -125,8 +130,17 @@ def filter_by_make(message):
     if not matching_ads:
         bot.send_message(message.chat.id, f"Нет объявлений по марке '{make}'.")
         return
+    bot.send_message(message.chat.id, "Введите интересующий город (например, Бишкек):")
+    bot.register_next_step_handler(message, filter_by_city, matching_ads)
+
+def filter_by_city(message, matching_ads):
+    city = message.text.lower()
+    filtered = [ad for ad in matching_ads if ad.get('city', '').lower() == city]
+    if not filtered:
+        bot.send_message(message.chat.id, f"Нет объявлений в городе '{city}'.")
+        return
     bot.send_message(message.chat.id, "Введите минимальный год выпуска (например, 2010):")
-    bot.register_next_step_handler(message, filter_by_year, matching_ads)
+    bot.register_next_step_handler(message, filter_by_year, filtered)
 
 def filter_by_year(message, matching_ads):
     try:
@@ -153,7 +167,7 @@ def filter_by_price(message, filtered_ads):
         return
 
     for ad in result_ads:
-        text = f"🚘 {ad['make']} {ad['model']}\n📅 Год: {ad['year']}\n💰 Цена: {ad['price']} сом\n📞 Контакт: {ad['contact']}"
+        text = f"🚘 {ad['make']} {ad['model']}\n📍 Город: {ad.get('city', 'Не указан')}\n📅 Год: {ad['year']}\n💰 Цена: {ad['price']} сом\n📞 Контакт: {ad['contact']}"
         if ad.get('image'):
             bot.send_photo(message.chat.id, ad['image'], caption=text)
         else:
@@ -166,93 +180,6 @@ def filter_by_price(message, filtered_ads):
 def go_to_main_menu(message):
     start(message)
 
-# === Удаление объявлений пользователя ===
-@bot.message_handler(commands=['delmyads'])
-def delete_my_ads(message):
-    user_ads = [ad for ad in ads if ad['user_id'] == message.chat.id]
-    if not user_ads:
-        bot.send_message(message.chat.id, "У вас нет размещённых объявлений.")
-        return
-    ad_list = "\n".join([f"{i+1}. {ad['make']} {ad['model']} ({ad['year']})" for i, ad in enumerate(user_ads)])
-    bot.send_message(message.chat.id, f"Ваши объявления:\n{ad_list}\nВведите номер объявления для удаления:")
-    bot.register_next_step_handler(message, delete_ad, user_ads)
-
-def delete_ad(message, user_ads):
-    try:
-        index = int(message.text) - 1
-        if 0 <= index < len(user_ads):
-            ads.remove(user_ads[index])
-            with open(ADS_FILE, "w", encoding="utf-8") as f:
-                json.dump(ads, f, ensure_ascii=False, indent=2)
-            bot.send_message(message.chat.id, "✅ Объявление удалено!")
-        else:
-            bot.send_message(message.chat.id, "Некорректный номер объявления.")
-    except ValueError:
-        bot.send_message(message.chat.id, "Пожалуйста, введите число.")
-
-# === Премиум доступ ===
-@bot.message_handler(func=lambda message: message.text == "💎 Премиум доступ")
-def premium_access(message):
-    bot.send_message(message.chat.id, "Премиум доступ позволяет быстрее продать или купить авто!\nСтоимость: 100 сомов/месяц.")
-
-# === Админ-панель ===
-@bot.message_handler(func=lambda message: message.text == "👨‍💻 Админ-панель")
-def admin_panel(message):
-    if message.chat.id != ADMIN_ID:
-        bot.send_message(message.chat.id, "Вы не администратор.")
-        return
-    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(types.KeyboardButton("🗑 Удалить все объявления"), types.KeyboardButton("📊 Статистика"))
-    bot.send_message(message.chat.id, "Админ-панель", reply_markup=markup)
-
-@bot.message_handler(func=lambda message: message.text == "🗑 Удалить все объявления")
-def delete_all_ads(message):
-    if message.chat.id != ADMIN_ID:
-        bot.send_message(message.chat.id, "Вы не администратор.")
-        return
-    global ads
-    ads = []
-    with open(ADS_FILE, "w", encoding="utf-8") as f:
-        json.dump(ads, f, ensure_ascii=False, indent=2)
-    bot.send_message(message.chat.id, "Все объявления удалены.")
-
-@bot.message_handler(func=lambda message: message.text == "📊 Статистика")
-def show_stats(message):
-    if message.chat.id != ADMIN_ID:
-        bot.send_message(message.chat.id, "Вы не администратор.")
-        return
-    bot.send_message(message.chat.id, f"Всего объявлений: {stats['total_ads']}\nВсего просмотров: {stats['total_views']}")
-
-
-from waitress import serve
-from flask import Flask
-import threading
-
-
-def run_flask():
-    app = Flask(__name__)
-
-    @app.route('/')
-    def home():
-        return "Telegram Bot is running on Fly.io!"
-
-    # Production-сервер
-    serve(app, host="0.0.0.0", port=8080)
-
-
-# Запускаем в отдельном потоке
-flask_thread = threading.Thread(target=run_flask)
-flask_thread.daemon = True
-flask_thread.start()
-
-print("🌐 Production server started on port 8080")
-# === Конец изменений ===
-
 # === Запуск бота ===
 print("🤖 Бот успешно запущен...")
 bot.infinity_polling()
-try:
-    bot.infinity_polling()
-except Exception as e:
-    print(f"❌ Ошибка бота: {e}")
-    # Можно добавить перезапуск через 5 секунд
